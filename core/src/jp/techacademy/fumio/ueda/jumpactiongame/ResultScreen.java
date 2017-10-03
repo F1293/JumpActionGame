@@ -2,6 +2,8 @@ package jp.techacademy.fumio.ueda.jumpactiongame;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.ScreenAdapter;
+import com.badlogic.gdx.audio.Music;
+import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Texture;
@@ -23,7 +25,12 @@ public class ResultScreen extends ScreenAdapter {
 
     int mScore;
 
+    Music gomusic = Gdx.audio.newMusic(Gdx.files.internal("gomusic.mp3"));//音楽準備
+    Sound rebirth = Gdx.audio.newSound(Gdx.files.internal("rebirth.mp3"));//効果音準備
+
     public ResultScreen(JumpActionGame game, int score) {
+
+        gomusic.play(); //ゲームオーバー画面の音楽再生
 
         mGame = game;
 
@@ -66,6 +73,8 @@ public class ResultScreen extends ScreenAdapter {
         mGame.batch.end();
 
         if (Gdx.input.justTouched()) {
+            gomusic.stop(); //ゲームオーバー画面の音楽停止
+            rebirth.play(1.0f);//復活音
             if (mGame.mRequestHandler != null) {
                 mGame.mRequestHandler.showAds(false); //広告消す
             }

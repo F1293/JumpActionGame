@@ -3,6 +3,8 @@ package jp.techacademy.fumio.ueda.jumpactiongame;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Preferences;
 import com.badlogic.gdx.ScreenAdapter;
+import com.badlogic.gdx.audio.Music;
+import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Texture;
@@ -27,7 +29,7 @@ public class GameScreen extends ScreenAdapter {
     static final float CAMERA_HEIGHT = 15;
     //ゲーム世界の広さを定義
     static final float WORLD_WIDTH = 10;
-    static final float WORLD_HEIGHT = 15 * 20; // 20画面分登れば終了
+    static final float WORLD_HEIGHT = 15 * 2; // 20画面分登れば終了
     static final float GUI_WIDTH = 320;//GUI用カメラのサイズ
     static final float GUI_HEIGHT = 480;//GUI用カメラのサイズ
 
@@ -54,8 +56,9 @@ public class GameScreen extends ScreenAdapter {
     List<Step> mSteps;//生成して配置した踏み台を保持するリスト
     List<Star> mStars;//生成して配置した星を保持するためのリスト
     List<DarkStar> mDarkStars;//生成して配置した偽星を保持するためのリスト
+    List<Enemy> mEnemy;
     Ufo mUfo;//生成して配置したゴールUFOを保持する
-    Player mPlayer;//生成して配置したプレーヤーを保持する
+    Player mPlayer;//生成して配置した敵を保持する
 
     float mHeightSoFar; //プレーヤーから地面までの距離を保持
     int mGameState;//ゲームの状態を保持
@@ -66,8 +69,19 @@ public class GameScreen extends ScreenAdapter {
     Preferences mPrefs; // データを永続化させるためのPreferenceをメンバ変数に定義
     float h =1; //足場を踏むごとに早く動かすための変数
 
+    //音楽の準備
+    Music playingmusic = Gdx.audio.newMusic(Gdx.files.internal("playingmusic.mp3"));
+
+    //効果音の準備
+    Sound hitsound = Gdx.audio.newSound(Gdx.files.internal("hitsound.mp3"));
+    Sound fall = Gdx.audio.newSound(Gdx.files.internal("fall.mp3"));
+    Sound jingle = Gdx.audio.newSound(Gdx.files.internal("jingle.mp3"));
+    Sound getstarsound = Gdx.audio.newSound(Gdx.files.internal("getstarsound.mp3"));
+
     public GameScreen(JumpActionGame game) {
         mGame = game;
+
+        playingmusic.setLooping(true);//音楽はループ
 
         //背景の処理
         Texture bgTexture = new Texture("back.png");
@@ -94,6 +108,7 @@ public class GameScreen extends ScreenAdapter {
         mRandom = new Random();
         mSteps = new ArrayList<Step>();
         mStars = new ArrayList<Star>();
+        mEnemy = new ArrayList<Enemy>();
         mDarkStars = new ArrayList<DarkStar>();
         mGameState = GAME_STATE_READY;
         mTouchPoint = new Vector3();
@@ -147,6 +162,11 @@ public class GameScreen extends ScreenAdapter {
             mStars.get(i).draw(mGame.batch);
         }
 
+        // Enemy,リストで保持しているので順番に取り出し
+        for (int i = 0; i < mEnemy.size(); i++) {
+            mEnemy.get(i).draw(mGame.batch);
+        }
+
         // DarkStar,リストで保持しているので順番に取り出し
         for (int i = 0; i < mDarkStars.size(); i++) {
             mDarkStars.get(i).draw(mGame.batch);
@@ -186,22 +206,20 @@ public class GameScreen extends ScreenAdapter {
         Texture stepTexture = new Texture("step.png");
         Texture starTexture = new Texture("star.png");
         Texture darkstarTexture = new Texture("darkstar.png");
+        Texture enemyTexture = new Texture("enemy.png");
         Texture playerTexture = new Texture("uma.png");
         Texture ufoTexture = new Texture("ufo.png");
 
-        // StepとStarをゴールの高さまで配置していく
+        // StepとStar、DarkStar、Enemyをゴールの高さまで配置していく
         float y = 0;
 
         float maxJumpHeight = Player.PLAYER_JUMP_VELOCITY * Player.PLAYER_JUMP_VELOCITY / (2 * -GRAVITY);
         //ゴール直前まで繰り返して生成
         while ( y < WORLD_HEIGHT - 5) {
-            //ランダムで動く床
-            //int type = mRandom.nextFloat() > 0.8f ? Step.STEP_TYPE_MOVING : Step.STEP_TYPE_STATIC;
-            int type = Step.STEP_TYPE_STATIC;
             //x方向はランダムな場所
             float x = mRandom.nextFloat() * (WORLD_WIDTH - Step.STEP_WIDTH);
 
-            Step step = new Step(type, stepTexture, 0, 0, 144, 36);
+            Step step = new Step(stepTexture, 0, 0, 144, 36);
             step.setPosition(x, y);
             mSteps.add(step);
 
@@ -225,6 +243,14 @@ public class GameScreen extends ScreenAdapter {
                 //床を基準に乱数で場所を決める
                 darkstar.setPosition(mRandom.nextFloat() * 4 + 6, step.getY() + DarkStar.DARKSTAR_HEIGHT + 1);
                 mDarkStars.add(darkstar);
+            }
+
+            //敵はランダムで生成(2/5の確率
+            if (mRandom.nextFloat() > 0.6f) {
+                Enemy enemy = new Enemy(enemyTexture, 0, 0, 120, 74);
+                //床を基準に乱数で場所を決める
+                enemy.setPosition(step.getX() + mRandom.nextFloat(), step.getY() + 8 + mRandom.nextFloat() * 3);
+                mEnemy.add(enemy);
             }
 
             //床はジャンプで届く位置に生成するように調整
@@ -263,6 +289,8 @@ public class GameScreen extends ScreenAdapter {
     }
 
     private void updatePlaying(float delta) {
+        playingmusic.play();//音楽を再生
+
         float accel = 0;
         //タッチされている間動作
         if (Gdx.input.isTouched()) {
@@ -287,6 +315,11 @@ public class GameScreen extends ScreenAdapter {
             mSteps.get(i).update(delta);
         }
 
+        // Step
+        for (int i = 0; i < mEnemy.size(); i++) {
+            mEnemy.get(i).update(delta);
+        }
+
         // Player
         //プレイヤーの座標が0.5以下になった場合(開始時)は踏み台に乗ったと同じ処理(hitStepメソッド)を行い、ジャンプさせる
         if (mPlayer.getY() <= 0.5f) {
@@ -308,92 +341,110 @@ public class GameScreen extends ScreenAdapter {
         //getBoundingRectangleメソッドでスプライトの矩形を表すRectangleを取得
         //矩形同士が重なっているかであたり判定当たっていればoverlapsの戻り値はtrue
         if (mPlayer.getBoundingRectangle().overlaps(mUfo.getBoundingRectangle())) {
+            jingle.play(1.0f);//クリア音
+            mScore = mScore + 5; //クリアボーナススコアに加算
+            if (mScore > mHighScore) { //ハイスコアを超えた場合
+                mHighScore = mScore; //今の点数をハイスコアに
+                //ハイスコアをPreferenceに保存する
+                mPrefs.putInteger("HIGHSCORE", mHighScore); // 第1引数にキー、第2引数に値を指定
+                mPrefs.flush(); // 値を永続化するのに必要
+            }
             mGameState = GAME_STATE_GAMEOVER;//ゲームクリア
             return;
         }
 
-        // Starとの当たり判定
-        for (int i = 0; i < mStars.size(); i++) {
-            Star star = mStars.get(i);
+            // Starとの当たり判定
+            for (int i = 0; i < mStars.size(); i++) {
+                Star star = mStars.get(i);
 
-            if (star.mState == Star.STAR_NONE) {//獲得済み
-                continue;
-            }
-
-            if (mPlayer.getBoundingRectangle().overlaps(star.getBoundingRectangle())) {
-                star.get();
-                mScore++; //スコアに加算
-                if (mScore > mHighScore) { //ハイスコアを超えた場合
-                    mHighScore = mScore; //今の点数をハイスコアに
-                    //ハイスコアをPreferenceに保存する
-                    mPrefs.putInteger("HIGHSCORE", mHighScore); // 第1引数にキー、第2引数に値を指定
-                    mPrefs.flush(); // 値を永続化するのに必要
+                if (star.mState == Star.STAR_NONE) {//獲得済み
+                    continue;
                 }
-                break;
-            }
-        }
 
-        // DarkStarとの当たり判定
+                if (mPlayer.getBoundingRectangle().overlaps(star.getBoundingRectangle())) {
+                    getstarsound.play(1.0f);//獲得音
+                    star.get();
+                    mScore++; //スコアに加算
+                    if (mScore > mHighScore) { //ハイスコアを超えた場合
+                        mHighScore = mScore; //今の点数をハイスコアに
+                        //ハイスコアをPreferenceに保存する
+                        mPrefs.putInteger("HIGHSCORE", mHighScore); // 第1引数にキー、第2引数に値を指定
+                        mPrefs.flush(); // 値を永続化するのに必要
+                    }
+                    break;
+                }
+            }
+
+            // DarkStarとの当たり判定
         for (int i = 0; i < mDarkStars.size(); i++) {
             DarkStar darkstar = mDarkStars.get(i);
 
-            if (darkstar.mDSState == DarkStar.DARKSTAR_NONE) {//獲得済み
-                continue;
-            }
-
             if (mPlayer.getBoundingRectangle().overlaps(darkstar.getBoundingRectangle())) {
-                darkstar.get();
-                mScore++; //スコアに加算
                 //当たるとゲームオーバー
                 Gdx.app.log("JampActionGame", "GAMEOVER");
+                //gomusic.play();//ゲームオーバー画面の音楽再生
+                hitsound.play(1.0f);//衝突音
                 mGameState = GAME_STATE_GAMEOVER;
                 break;
             }
         }
 
-        // Stepとの当たり判定
-        // 上昇中はStepとの当たり判定を確認しない
-        if (mPlayer.velocity.y > 0) {
-            return;//上昇中はここで処理終了
+        // Enemyとの当たり判定
+        for (int i = 0; i < mEnemy.size(); i++) {
+            Enemy enemy = mEnemy.get(i);
+
+            if (mPlayer.getBoundingRectangle().overlaps(enemy.getBoundingRectangle())) {
+                //当たるとゲームオーバー
+                Gdx.app.log("JampActionGame", "GAMEOVER");
+                //gomusic.play();//ゲームオーバー画面の音楽再生
+                hitsound.play(1.0f);//衝突音
+                mGameState = GAME_STATE_GAMEOVER;
+                break;
+            }
         }
 
-        for (int i = 0; i < mSteps.size(); i++) {
-            Step step = mSteps.get(i);
-
-
-            //消えた足場は判定しない
-            if (step.mState == Step.STEP_STATE_VANISH) {
-                continue;
+            // Stepとの当たり判定
+            // 上昇中はStepとの当たり判定を確認しない
+            if (mPlayer.velocity.y > 0) {
+                return;//上昇中はここで処理終了
             }
 
-            if (mPlayer.getY() > step.getY()) {
-                if (mPlayer.getBoundingRectangle().overlaps(step.getBoundingRectangle())) {
-                    mPlayer.hitStep();
+            for (int i = 0; i < mSteps.size(); i++) {
+                Step step = mSteps.get(i);
 
-                    //１回踏むと足場動く
-                    if (h < 13) {
-                        h = h * 1.1f;
-                       // h = 0;
-                   }
-                    step.move(h);
-                    break;
+                if (mPlayer.getY() > step.getY()) {
+                    if (mPlayer.getBoundingRectangle().overlaps(step.getBoundingRectangle())) {
+                        mPlayer.hitStep();
+
+                        //１回踏むと足場動くだんだん早くなる13まで
+                        if (h < 13) {
+                            h = h * 1.1f;
+                            // h = 0;
+                        }
+                        step.move(h);
+                        break;
+                    }
                 }
             }
         }
-    }
 
     private void checkGameOver() {
         //地面との距離からカメラの高さの半分を引き、その値より低くなったらゲームオーバー
         //(画面の下まで落ちた場合）
         if (mHeightSoFar - CAMERA_HEIGHT / 2 > mPlayer.getY()) {
             Gdx.app.log("JampActionGame", "GAMEOVER");
+            //gomusic.play();//ゲームオーバー画面の音楽再生
+            fall.play(1.5f);//衝突音
             mGameState = GAME_STATE_GAMEOVER;
         }
     }
 
     //ゲームオーバー時タッチするとResultScreenに遷移
     private void updateGameOver() {
+        playingmusic.stop();//音楽停止
+        //gomusic.play();//ゲームオーバー画面の音楽再生
         if (Gdx.input.justTouched()) {
+            //gomusic.stop(); //ゲームオーバー画面の音楽停止
             mGame.setScreen(new ResultScreen(mGame, mScore));
         }
     }
