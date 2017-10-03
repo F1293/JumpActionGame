@@ -53,11 +53,24 @@ public class Step extends GameObject {
     }
 
     // 消える
-    public void vanish() {
+    /*public void vanish() {
         mState = STEP_STATE_VANISH;
         setAlpha(0);
         //透明にする
         velocity.x = 0;
         //速度ゼロに
+    }*/
+
+    //踏むたびに早く動く
+    public void move(float i) {
+        mType = STEP_TYPE_MOVING;
+        if (getX() < GameScreen.WORLD_WIDTH / 2 - STEP_WIDTH / 2) {
+            velocity.x = i;
+        }
+        if (getX() > GameScreen.WORLD_WIDTH / 2 - STEP_WIDTH / 2) {
+            velocity.x = - i ;
+        }
+       // velocity.x ++;
+
     }
 }

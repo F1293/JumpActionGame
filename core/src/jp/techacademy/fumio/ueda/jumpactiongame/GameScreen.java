@@ -53,6 +53,7 @@ public class GameScreen extends ScreenAdapter {
     Random mRandom;//乱数を取得するためのクラス
     List<Step> mSteps;//生成して配置した踏み台を保持するリスト
     List<Star> mStars;//生成して配置した星を保持するためのリスト
+    List<DarkStar> mDarkStars;//生成して配置した偽星を保持するためのリスト
     Ufo mUfo;//生成して配置したゴールUFOを保持する
     Player mPlayer;//生成して配置したプレーヤーを保持する
 
@@ -63,6 +64,7 @@ public class GameScreen extends ScreenAdapter {
     int mScore; // スコアを保持するメンバ変数
     int mHighScore; // ハイスコアを保持するメンバ変数
     Preferences mPrefs; // データを永続化させるためのPreferenceをメンバ変数に定義
+    float h =1; //足場を踏むごとに早く動かすための変数
 
     public GameScreen(JumpActionGame game) {
         mGame = game;
@@ -92,6 +94,7 @@ public class GameScreen extends ScreenAdapter {
         mRandom = new Random();
         mSteps = new ArrayList<Step>();
         mStars = new ArrayList<Star>();
+        mDarkStars = new ArrayList<DarkStar>();
         mGameState = GAME_STATE_READY;
         mTouchPoint = new Vector3();
         mFont = new BitmapFont(Gdx.files.internal("font.fnt"), Gdx.files.internal("font.png"), false); // フォントファイルの読み込み
@@ -144,6 +147,11 @@ public class GameScreen extends ScreenAdapter {
             mStars.get(i).draw(mGame.batch);
         }
 
+        // DarkStar,リストで保持しているので順番に取り出し
+        for (int i = 0; i < mDarkStars.size(); i++) {
+            mDarkStars.get(i).draw(mGame.batch);
+        }
+
         // UFO
         mUfo.draw(mGame.batch);
 
@@ -177,6 +185,7 @@ public class GameScreen extends ScreenAdapter {
         // テクスチャの準備
         Texture stepTexture = new Texture("step.png");
         Texture starTexture = new Texture("star.png");
+        Texture darkstarTexture = new Texture("darkstar.png");
         Texture playerTexture = new Texture("uma.png");
         Texture ufoTexture = new Texture("ufo.png");
 
@@ -185,9 +194,10 @@ public class GameScreen extends ScreenAdapter {
 
         float maxJumpHeight = Player.PLAYER_JUMP_VELOCITY * Player.PLAYER_JUMP_VELOCITY / (2 * -GRAVITY);
         //ゴール直前まで繰り返して生成
-        while (y < WORLD_HEIGHT - 5) {
+        while ( y < WORLD_HEIGHT - 5) {
             //ランダムで動く床
-            int type = mRandom.nextFloat() > 0.8f ? Step.STEP_TYPE_MOVING : Step.STEP_TYPE_STATIC;
+            //int type = mRandom.nextFloat() > 0.8f ? Step.STEP_TYPE_MOVING : Step.STEP_TYPE_STATIC;
+            int type = Step.STEP_TYPE_STATIC;
             //x方向はランダムな場所
             float x = mRandom.nextFloat() * (WORLD_WIDTH - Step.STEP_WIDTH);
 
@@ -195,7 +205,7 @@ public class GameScreen extends ScreenAdapter {
             step.setPosition(x, y);
             mSteps.add(step);
 
-            //星はランダムで生成(3/5の確率
+            //星はランダムで生成(2/5の確率
             if (mRandom.nextFloat() > 0.6f) {
                 Star star = new Star(starTexture, 0, 0, 72, 72);
                 //床を基準に乱数で場所を決める
@@ -203,7 +213,21 @@ public class GameScreen extends ScreenAdapter {
                 mStars.add(star);
             }
 
-            //ジャンプで届く位置に生成するように調整
+            //偽星はランダムで生成(1/5の確率、中央に配置させないため二つに分ける
+            if (mRandom.nextFloat() > 0.9f) {
+                DarkStar darkstar = new DarkStar(darkstarTexture, 0, 0, 72, 72);
+                //床を基準に乱数で場所を決める
+                darkstar.setPosition(mRandom.nextFloat() * 3, step.getY() + DarkStar.DARKSTAR_HEIGHT + 1);
+                mDarkStars.add(darkstar);
+            }
+            if (mRandom.nextFloat() > 0.9f) {
+                DarkStar darkstar = new DarkStar(darkstarTexture, 0, 0, 72, 72);
+                //床を基準に乱数で場所を決める
+                darkstar.setPosition(mRandom.nextFloat() * 4 + 6, step.getY() + DarkStar.DARKSTAR_HEIGHT + 1);
+                mDarkStars.add(darkstar);
+            }
+
+            //床はジャンプで届く位置に生成するように調整
             y += (maxJumpHeight - 0.5f);
             y -= mRandom.nextFloat() * (maxJumpHeight / 3);
         }
@@ -309,6 +333,24 @@ public class GameScreen extends ScreenAdapter {
             }
         }
 
+        // DarkStarとの当たり判定
+        for (int i = 0; i < mDarkStars.size(); i++) {
+            DarkStar darkstar = mDarkStars.get(i);
+
+            if (darkstar.mDSState == DarkStar.DARKSTAR_NONE) {//獲得済み
+                continue;
+            }
+
+            if (mPlayer.getBoundingRectangle().overlaps(darkstar.getBoundingRectangle())) {
+                darkstar.get();
+                mScore++; //スコアに加算
+                //当たるとゲームオーバー
+                Gdx.app.log("JampActionGame", "GAMEOVER");
+                mGameState = GAME_STATE_GAMEOVER;
+                break;
+            }
+        }
+
         // Stepとの当たり判定
         // 上昇中はStepとの当たり判定を確認しない
         if (mPlayer.velocity.y > 0) {
@@ -318,6 +360,7 @@ public class GameScreen extends ScreenAdapter {
         for (int i = 0; i < mSteps.size(); i++) {
             Step step = mSteps.get(i);
 
+
             //消えた足場は判定しない
             if (step.mState == Step.STEP_STATE_VANISH) {
                 continue;
@@ -326,10 +369,13 @@ public class GameScreen extends ScreenAdapter {
             if (mPlayer.getY() > step.getY()) {
                 if (mPlayer.getBoundingRectangle().overlaps(step.getBoundingRectangle())) {
                     mPlayer.hitStep();
-                    //二分の一で足場を消す
-                    if (mRandom.nextFloat() > 0.5f) {
-                        step.vanish();
-                    }
+
+                    //１回踏むと足場動く
+                    if (h < 13) {
+                        h = h * 1.1f;
+                       // h = 0;
+                   }
+                    step.move(h);
                     break;
                 }
             }

@@ -5,7 +5,7 @@ package jp.techacademy.fumio.ueda.jumpactiongame;
  */
 
 import com.badlogic.gdx.graphics.Texture;
-import com.badlogic.gdx.graphics.g2d.Sprite;
+        import com.badlogic.gdx.graphics.g2d.Sprite;
 
 public class Star extends Sprite {
     // 横幅、高さ
