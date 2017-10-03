@@ -29,7 +29,7 @@ public class GameScreen extends ScreenAdapter {
     static final float CAMERA_HEIGHT = 15;
     //ゲーム世界の広さを定義
     static final float WORLD_WIDTH = 10;
-    static final float WORLD_HEIGHT = 15 * 2; // 20画面分登れば終了
+    static final float WORLD_HEIGHT = 15 * 20; // 20画面分登れば終了
     static final float GUI_WIDTH = 320;//GUI用カメラのサイズ
     static final float GUI_HEIGHT = 480;//GUI用カメラのサイズ
 
